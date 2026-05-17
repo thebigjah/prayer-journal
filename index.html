@@ -329,6 +329,10 @@
 </div>
 
 <div id="view-answered" class="view" style="display:none;">
+  <div class="panel" id="answered-stats-panel" style="display:none;">
+    <h2>Stats</h2>
+    <div id="answered-stats"></div>
+  </div>
   <div class="panel">
     <h2>Answered prayer log</h2>
     <p class="prompt">The point of this list: when you doubt that anything is happening, scroll back through it.</p>
@@ -516,6 +520,62 @@ function renderRequests() {
 function renderAnswered() {
   const ans = requests.filter(r => r.answered).sort((a,b) => (b.answered || '').localeCompare(a.answered || ''));
   const el = document.getElementById('answered-requests');
+  const statsPanel = document.getElementById('answered-stats-panel');
+
+  if (ans.length) {
+    // Build stats
+    const open = requests.filter(r => !r.answered).length;
+    const total = requests.length;
+    const ratePct = total ? Math.round((ans.length / total) * 100) : 0;
+    // Avg + longest time to answer
+    const durations = ans.map(r => {
+      const start = new Date(r.addedAt).getTime();
+      const end = new Date(r.answered).getTime();
+      return Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24)));
+    });
+    const avgDays = durations.length ? Math.round(durations.reduce((s,d) => s+d, 0) / durations.length) : 0;
+    const maxDays = durations.length ? Math.max(...durations) : 0;
+    // By tag (answered)
+    const byTag = {};
+    ans.forEach(r => {
+      const t = r.tag || '(untagged)';
+      byTag[t] = (byTag[t] || 0) + 1;
+    });
+    const sortedTags = Object.entries(byTag).sort((a,b) => b[1] - a[1]).slice(0, 8);
+
+    statsPanel.style.display = '';
+    document.getElementById('answered-stats').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.6rem;margin-bottom:1rem;">
+        <div style="text-align:center;padding:0.85rem 0.4rem;background:var(--bg);border-radius:8px;">
+          <div style="font-family:var(--serif);font-size:1.6rem;color:var(--answered);line-height:1.1;">${ans.length}</div>
+          <div style="font-size:0.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.25rem;">answered</div>
+        </div>
+        <div style="text-align:center;padding:0.85rem 0.4rem;background:var(--bg);border-radius:8px;">
+          <div style="font-family:var(--serif);font-size:1.6rem;color:var(--accent);line-height:1.1;">${ratePct}%</div>
+          <div style="font-size:0.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.25rem;">of all logged</div>
+        </div>
+        <div style="text-align:center;padding:0.85rem 0.4rem;background:var(--bg);border-radius:8px;">
+          <div style="font-family:var(--serif);font-size:1.6rem;color:var(--accent);line-height:1.1;">${avgDays}d</div>
+          <div style="font-size:0.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.25rem;">avg time</div>
+        </div>
+      </div>
+      <div style="color:var(--ink-soft);font-size:0.85rem;margin-bottom:0.5rem;">
+        Longest answer wait: <strong style="color:var(--ink);">${maxDays} day${maxDays===1?'':'s'}</strong>
+      </div>
+      <div style="margin-top:1rem;">
+        <div style="color:var(--accent);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">Answered by tag</div>
+        ${sortedTags.map(([t,c]) => `
+          <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--border);font-size:0.9rem;">
+            <span>${escapeHtml(t)}</span>
+            <span style="color:var(--ink-soft);">${c}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else {
+    statsPanel.style.display = 'none';
+  }
+
   if (!ans.length) { el.innerHTML = '<div class="empty">No answered prayers logged yet. They come.</div>'; return; }
   el.innerHTML = ans.map(r => `
     <div class="request answered">
