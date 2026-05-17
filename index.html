@@ -339,6 +339,7 @@
 <div id="view-history" class="view" style="display:none;">
   <div class="panel">
     <h2>Past entries</h2>
+    <input type="text" id="history-search" placeholder="Search across past entries (any ACTS section)" style="margin-bottom:0.85rem;">
     <div id="history-list" class="entry-list"></div>
   </div>
 </div>
@@ -496,17 +497,20 @@ function renderRequests() {
   const open = requests.filter(r => !r.answered).sort((a,b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
   const el = document.getElementById('open-requests');
   if (!open.length) { el.innerHTML = '<div class="empty">No open requests. Add one above.</div>'; return; }
-  el.innerHTML = open.map(r => `
-    <div class="request">
-      <div class="meta">added ${fmtDate(r.addedAt.split('T')[0])}${r.tag ? ' · ' + escapeHtml(r.tag) : ''}</div>
-      <div class="text">${escapeHtml(r.text)}</div>
-      <div class="actions">
-        <button class="answered" data-action="answer" data-id="${r.id}">Mark answered</button>
-        <button class="ghost" data-action="edit" data-id="${r.id}">Edit</button>
-        <button class="ghost" data-action="delete" data-id="${r.id}">Delete</button>
-      </div>
-    </div>
-  `).join('');
+  el.innerHTML = open.map(r => {
+    const days = Math.floor((Date.now() - new Date(r.addedAt).getTime()) / (1000 * 60 * 60 * 24));
+    const daysLabel = days === 0 ? 'today' : days === 1 ? '1 day' : days + ' days';
+    return `
+      <div class="request">
+        <div class="meta">added ${fmtDate(r.addedAt.split('T')[0])} · praying for ${daysLabel}${r.tag ? ' · ' + escapeHtml(r.tag) : ''}</div>
+        <div class="text">${escapeHtml(r.text)}</div>
+        <div class="actions">
+          <button class="answered" data-action="answer" data-id="${r.id}">Mark answered</button>
+          <button class="ghost" data-action="edit" data-id="${r.id}">Edit</button>
+          <button class="ghost" data-action="delete" data-id="${r.id}">Delete</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function renderAnswered() {
@@ -563,8 +567,19 @@ function handleRequestClick(e) {
 
 function renderHistory() {
   const el = document.getElementById('history-list');
+  const query = (document.getElementById('history-search')?.value || '').toLowerCase().trim();
   if (!entries.length) { el.innerHTML = '<div class="empty">No entries yet.</div>'; return; }
-  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date));
+  let sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date));
+  if (query) {
+    sorted = sorted.filter(e =>
+      (e.adoration && e.adoration.toLowerCase().includes(query)) ||
+      (e.confession && e.confession.toLowerCase().includes(query)) ||
+      (e.thanks && e.thanks.toLowerCase().includes(query)) ||
+      (e.supp && e.supp.toLowerCase().includes(query)) ||
+      e.date.includes(query)
+    );
+  }
+  if (!sorted.length) { el.innerHTML = '<div class="empty">No matches for "' + escapeHtml(query) + '".</div>'; return; }
   el.innerHTML = sorted.map(e => `
     <div class="entry">
       <div class="date">${fmtDate(e.date)}</div>
@@ -649,6 +664,7 @@ document.getElementById('export-btn').addEventListener('click', exportJSON);
 document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
 document.getElementById('import-file').addEventListener('change', importJSON);
 document.getElementById('reset-btn').addEventListener('click', resetAll);
+document.getElementById('history-search').addEventListener('input', renderHistory);
 
 renderAll();
 </script>
